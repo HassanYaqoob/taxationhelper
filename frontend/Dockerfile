@@ -10,5 +10,6 @@ FROM nginx:1.29-alpine
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist/kira-web/browser /usr/share/nginx/html
 # The API container's address; nginx substitutes it into the template at start-up.
-ENV API_UPSTREAM=http://api:8080
+ENV API_UPSTREAM=http://api:8080 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 80
