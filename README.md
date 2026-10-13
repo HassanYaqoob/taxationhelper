@@ -237,6 +237,7 @@ All settings live in `backend/src/Kira.Api/appsettings.json`. You can override a
 | `App:TimeZone` | `Asia/Kuala_Lumpur` | Decides what "today" means for deadlines |
 | `App:HttpsRedirect` | `false` | Turn on if Kestrel itself serves HTTPS |
 | `App:ExposeApiDocs` | `false` (`true` in Development) | Serve `/openapi/v1.json` and `/scalar` |
+| `Database:Provider` | `SqlServer` | `SqlServer` (supported). `Postgres` is only a fallback for small test servers that can't give SQL Server its 2 GB minimum memory, such as Railway's Hobby plan. `ConnectionStrings:Kira` can then be a `postgres://` URL. |
 | `Anthropic:ApiKey` | empty | Turns on the AI features |
 | `Anthropic:Model` | `claude-sonnet-5-5` | Model used for reading documents and answering questions |
 

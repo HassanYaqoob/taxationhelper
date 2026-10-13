@@ -134,7 +134,7 @@ internal sealed class StoredFileConfig : IEntityTypeConfiguration<StoredFile>
         b.Property(x => x.FileName).HasMaxLength(200);
         b.Property(x => x.ContentType).HasMaxLength(100);
         b.Property(x => x.Sha256).HasMaxLength(64);
-        b.Property(x => x.Data).HasColumnType("varbinary(max)");
+        b.Property(x => x.Data); // varbinary(max) on SQL Server, bytea on PostgreSQL
         b.HasIndex(x => x.CompanyId);
         b.HasIndex(x => x.UserId);
     }
@@ -215,7 +215,7 @@ internal sealed class ReceiptConfig : IEntityTypeConfiguration<Receipt>
         b.ToTable("Receipts");
         b.Property(x => x.Merchant).HasMaxLength(200);
         b.Property(x => x.ReceiptNo).HasMaxLength(60);
-        b.Property(x => x.ItemsJson).HasMaxLength(20000).HasColumnType("nvarchar(max)"); // overrides the 400 default
+        b.Property(x => x.ItemsJson).HasMaxLength(20000); // nvarchar(max) on SQL Server; overrides the 400 default
         b.Property(x => x.ScreenshotJson).HasMaxLength(2000);
         b.Property(x => x.Category).HasMaxLength(40);
         b.Property(x => x.PrintedPayment).HasMaxLength(60);

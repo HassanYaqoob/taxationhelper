@@ -21,7 +21,7 @@ public static class DatabaseInitializer
 
         if (config.GetValue("Database:AutoMigrate", true))
         {
-            if (db.Database.GetMigrations().Any())
+            if (db.Database.IsSqlServer() && db.Database.GetMigrations().Any()) // migrations are SQL Server; other providers get the schema directly
             {
                 log.LogInformation("Applying database migrations…");
                 await db.Database.MigrateAsync(ct);
