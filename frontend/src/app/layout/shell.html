@@ -1,0 +1,128 @@
+<div class="app">
+  <aside class="side" [class.open]="menuOpen()">
+    <div class="logo"><b>K</b>Kira</div>
+
+    <div style="position: relative">
+      <button type="button" class="wsbtn" (click)="wsMenuOpen.set(!wsMenuOpen())" aria-haspopup="menu" [attr.aria-expanded]="wsMenuOpen()">
+        <span class="wsav" [class.company]="current()?.kind === 'company'" [class.personal]="current()?.kind === 'personal'">
+          @if (current()?.kind === 'personal') { <k-icon name="home" [size]="16" /> } @else { {{ initials(current()?.name ?? '') }} }
+        </span>
+        <span class="grow"><span class="wsname">{{ current()?.name }}</span><span class="caption">{{ wsLabel(current()) }}</span></span>
+        <k-icon name="chev" [size]="16" />
+      </button>
+      @if (wsMenuOpen()) {
+        <div class="pop" role="menu" style="left: 0; right: 0; top: 58px">
+          <div class="gl">Your workspaces</div>
+          @for (w of auth.me()?.workspaces ?? []; track w.kind + w.id) {
+            <button type="button" role="menuitem" class="o" [class.on]="w.id === current()?.id && w.kind === current()?.kind" (click)="switchTo(w)">
+              <span class="wsav" style="width: 28px; height: 28px" [class.company]="w.kind === 'company'" [class.personal]="w.kind === 'personal'">
+                @if (w.kind === 'personal') { <k-icon name="home" [size]="14" /> } @else { {{ initials(w.name) }} }
+              </span>
+              <span class="grow"><span class="wsname">{{ w.name }}</span><span class="caption">{{ wsLabel(w) }}</span></span>
+            </button>
+          }
+          <div class="sep"></div>
+          <a class="o" role="menuitem" routerLink="/welcome"><k-icon name="plus" [size]="16" />Add a company{{ auth.me()?.usesPersonal ? '' : ' or personal space' }}</a>
+        </div>
+      }
+    </div>
+
+    <nav class="nav" aria-label="Main">
+      @for (n of nav(); track n.path) {
+        <a [routerLink]="n.path" routerLinkActive="active" ariaCurrentWhenActive="page">
+          <k-icon [name]="n.icon" />{{ n.label }}
+          @if (n.count) { <span class="cnt">{{ n.count }}</span> }
+        </a>
+      }
+    </nav>
+
+    <div class="side-foot">
+      @if (current()?.kind === 'personal') { Only you can see this workspace. Companies you belong to can't. }
+      @else if (!ws.canEdit()) { You have read-only access as a tax agent. }
+      @else { Company data is kept separate from everyone's personal workspace. }
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button type="button" class="iconbtn menubtn" aria-label="Open menu" (click)="menuOpen.set(!menuOpen())"><k-icon name="menu" /></button>
+      <button type="button" class="searchbtn" (click)="openSearch()">
+        <k-icon name="search" [size]="16" />
+        <span>Search {{ current()?.kind === 'personal' ? 'transactions and receipts' : 'entries, bank lines, documents' }}</span><kbd>Ctrl K</kbd>
+      </button>
+      <div class="row" style="margin-left: auto; gap: 6px; position: relative">
+        <button type="button" class="btn ghost" (click)="askOpen.set(true)"><k-icon name="chat" [size]="16" /><span class="hide-sm">Ask Kira</span></button>
+        <button type="button" class="row" style="border: 0; background: none; cursor: pointer; padding: 4px 6px; border-radius: 9px"
+          (click)="userMenuOpen.set(!userMenuOpen())" aria-haspopup="menu" [attr.aria-expanded]="userMenuOpen()">
+          <span class="av">{{ initials(auth.me()?.name ?? '') }}</span>
+          <span class="hide-sm" style="text-align: left; line-height: 1.2">
+            <span style="display: block; font-weight: 500; font-size: 13.5px">{{ auth.me()?.name }}</span>
+            <span class="caption">{{ auth.me()?.email }}</span>
+          </span>
+        </button>
+        @if (userMenuOpen()) {
+          <div class="pop" role="menu" style="right: 0; top: 48px">
+            @if (!auth.me()?.aiEnabled) { <div class="gl">AI is off on this server. Add an Anthropic API key to turn it on.</div><div class="sep"></div> }
+            <button type="button" role="menuitem" class="o" (click)="passwordOpen.set(true); userMenuOpen.set(false)"><k-icon name="lock" [size]="16" />Change password</button>
+            <button type="button" role="menuitem" class="o" (click)="auth.logout()"><k-icon name="logout" [size]="16" />Sign out</button>
+          </div>
+        }
+      </div>
+    </header>
+    <main class="content">
+      @for (k of [outletKey()]; track k) { <router-outlet /> }
+    </main>
+  </div>
+</div>
+
+@if (searchOpen()) {
+  <div class="modal-wrap" (click)="searchOpen.set(false)">
+    <div class="modal wide" role="dialog" aria-label="Search" (click)="$event.stopPropagation()">
+      <input class="input" style="border: 0; border-bottom: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 16px 18px; font-size: 16px; min-height: 56px"
+        placeholder="Search by name or amount, e.g. TNB or 612.40" aria-label="Search" autofocus
+        [ngModel]="query()" (ngModelChange)="onQuery($event)" (keydown.enter)="hits()[0] && go(hits()[0])">
+      <div style="max-height: 55vh; overflow-y: auto; padding: 6px">
+        @for (h of hits(); track $index) {
+          <button type="button" class="list-row click" style="border-radius: 8px" (click)="go(h)">
+            <div class="grow"><div class="title">{{ h.title }}</div><div class="caption">{{ h.detail }}</div></div>
+            <span class="pill gr">{{ h.kind }}</span>
+          </button>
+        } @empty {
+          <div class="empty">{{ searchEmptyText() }}</div>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@if (askOpen()) {
+  <div class="backdrop" (click)="askOpen.set(false)"></div>
+  <aside class="drawer" role="dialog" aria-label="Ask Kira">
+    <div class="dh">
+      <k-icon name="spark" /><h2>Ask Kira about {{ current()?.kind === 'personal' ? 'your money' : 'the books' }}</h2>
+      <button type="button" class="iconbtn" style="margin-left: auto" aria-label="Close" (click)="askOpen.set(false)"><k-icon name="x" /></button>
+    </div>
+    <div class="db stack">
+      <textarea class="input" [(ngModel)]="question" aria-label="Question"
+        [placeholder]="current()?.kind === 'personal' ? 'e.g. How much did I spend on dining in the last 3 months? Which reliefs am I not using?' : 'e.g. Why were expenses high in June? How much did we spend on ads this year?'"></textarea>
+      <div class="row">
+        <button type="button" class="btn primary" [disabled]="asking() || !question.trim()" (click)="ask()">{{ asking() ? 'Thinking…' : 'Ask' }}</button>
+        <span class="caption">Answers use only your own records.</span>
+      </div>
+      @if (answer()) { <div class="card pad" style="white-space: pre-wrap">{{ answer() }}</div> }
+    </div>
+  </aside>
+}
+
+@if (passwordOpen()) {
+  <div class="modal-wrap" (click)="passwordOpen.set(false)">
+    <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="changePassword()">
+      <div class="mh"><h2>Change password</h2><p>You'll stay signed in here. Other devices will be signed out.</p></div>
+      <div class="mb stack">
+        <label class="field">Current password<input class="input" type="password" name="current" [(ngModel)]="password.current" autocomplete="current-password"></label>
+        <label class="field">New password<input class="input" type="password" name="new" [(ngModel)]="password.new" autocomplete="new-password"><span class="hint">At least 10 characters.</span></label>
+      </div>
+      <div class="mf"><button type="button" class="btn" (click)="passwordOpen.set(false)">Cancel</button><button type="submit" class="btn primary">Change password</button></div>
+    </form>
+  </div>
+}

@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+appsettings.*.local.json
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+out-tsc/
+npm-debug.log*
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.pfx

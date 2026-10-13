@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure business model: entities, rules and calculations. No framework dependencies. -->
+</Project>

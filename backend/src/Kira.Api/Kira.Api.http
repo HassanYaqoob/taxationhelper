@@ -1,0 +1,17 @@
+# Sample requests for the VS / VS Code / Rider HTTP client.
+@api = http://localhost:5080/api/v1
+
+### Sign in with the demo owner (development only)
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "hassan@demo.kira", "password": "Demo12345!" }
+
+### Who am I
+@token = {{login.response.body.$.accessToken}}
+GET {{api}}/me
+Authorization: Bearer {{token}}
+
+### Health
+GET http://localhost:5080/health/ready
