@@ -1,0 +1,65 @@
+# Render blueprint for a free test deployment of Kira.
+# Website (static) -> forwards /api and /health to the API, so sign-in cookies stay on one site.
+# API (Docker) -> PostgreSQL (Render's free database). SQL Server remains the production database.
+databases:
+  - name: kira-db
+    plan: free
+    databaseName: kira
+    user: kira
+
+services:
+  - type: web
+    name: kira-api
+    runtime: docker
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/src/Kira.Api/Dockerfile
+    healthCheckPath: /health/live
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Database__Provider
+        value: Postgres
+      - key: ConnectionStrings__Kira
+        fromDatabase:
+          name: kira-db
+          property: connectionString
+      - key: Jwt__Key
+        generateValue: true          # random secret created by Render
+      - key: Seed__Demo
+        value: "true"
+      - key: Auth__SecureCookies
+        value: "true"
+      - key: App__ExposeApiDocs
+        value: "true"
+      - key: Anthropic__ApiKey
+        sync: false                  # optional: paste your key in the Render dashboard
+
+  - type: web
+    name: kira-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npx ng build --configuration production
+    staticPublishPath: dist/kira-web/browser
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://kira-api.onrender.com/api/*
+      - type: rewrite
+        source: /health/*
+        destination: https://kira-api.onrender.com/health/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
