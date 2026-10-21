@@ -142,13 +142,20 @@ public sealed class Extractors(IAiClient ai, IClock clock)
             .ToList();
     }
 
-    public async Task<ReceiptRead> ReceiptAsync(byte[] data, string contentType, ReliefYear reliefs, CancellationToken ct)
+    public Task<ReceiptRead> ReceiptAsync(byte[] data, string contentType, ReliefYear reliefs, CancellationToken ct) =>
+        ReceiptAsync([new AiAttachment(data, contentType)], reliefs, ct);
+
+    /// <summary>Reads a receipt. A long receipt can come as several images, top to bottom, that may overlap a little.</summary>
+    public async Task<ReceiptRead> ReceiptAsync(IReadOnlyList<AiAttachment> images, ReliefYear reliefs, CancellationToken ct)
     {
         EnsureEnabled();
+        var parts = images.Count > 1
+            ? $"The receipt is long, so it is attached as {images.Count} consecutive images from top to bottom. Neighbouring images can overlap by a few lines: count each line only once.\n"
+            : "";
         var reliefList = string.Join("\n", reliefs.Items.Select(r => $"- {r.Code}: {r.Name} ({r.Hint})"));
         var json = await AskJsonAsync($$$"""
             Read this receipt or invoice for a person's personal records in Malaysia.
-            JSON shape:
+            {{{parts}}}JSON shape:
             {"merchant":"","date":"YYYY-MM-DD","total":0,"sst":0,"receiptNo":"","items":[{"description":"","amount":0}],
              "category":"one of: {{{string.Join(", ", PersonalCategories.All)}}}","confidence":0.0,"reason":"under 12 words",
              "printedPayment":{"method":"cash|card|ewallet|qr|transfer|unknown","last4":"digits or null","provider":"e.g. VISA, Mastercard, Touch 'n Go, DuitNow QR, or null"},
@@ -156,7 +163,7 @@ public sealed class Extractors(IAiClient ai, IClock clock)
             Rules: dates are day-first. total is the amount actually paid. sst is the SST/service tax if shown, else 0.
             Only suggest a relief when the purchase plausibly qualifies for this Malaysian personal tax relief (YA {{{reliefs.YearOfAssessment}}}):
             {{{reliefList}}}
-            """, [new AiAttachment(data, contentType)], ct);
+            """, images, ct);
         var pp = json.Obj("printedPayment");
         var rel = json.Obj("relief");
         var relCode = rel.Str("code");

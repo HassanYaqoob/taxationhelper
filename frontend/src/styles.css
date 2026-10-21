@@ -172,6 +172,8 @@ table.t tr.sub td { color: var(--muted); font-size: 13.5px; }
 .rcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; cursor: pointer; text-align: left; padding: 0; box-shadow: var(--shadow); text-decoration: none; color: inherit; display: block; }
 .rcard:hover { border-color: var(--caption); }
 .rthumb { height: 150px; background: var(--chip); display: grid; place-items: center; color: var(--caption); overflow: hidden; }
+.scan-view { max-height: 75vh; overflow: auto; background: var(--sunk); padding: 12px; text-align: center; }
+.scan-view img { width: 100%; max-width: 380px; height: auto; display: block; margin: 0 auto; background: #fff; box-shadow: var(--shadow); }
 .rthumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .bars .b { display: grid; grid-template-columns: 130px minmax(0, 1fr) 100px; gap: 10px; align-items: center; padding: 6px 0; font-size: 13.5px; }
 .chart { display: flex; gap: 4px; align-items: flex-end; height: 200px; }

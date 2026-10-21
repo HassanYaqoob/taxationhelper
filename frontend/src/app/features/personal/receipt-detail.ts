@@ -30,8 +30,13 @@ interface Form { merchant: string; date: string; total: number; sst: number; cat
   <div class="grid receipt-layout">
     <section class="card" style="overflow: hidden; align-self: start">
       @if (x.hasImage) {
-        <div class="rthumb" style="height: auto; min-height: 300px"><k-receipt-image [url]="'/personal/receipts/' + x.id + '/image'" [alt]="x.merchant" /></div>
-      } @else { <div class="empty">Entered by hand. No image.</div> }
+        <div class="scan-view"><k-receipt-image [url]="'/personal/receipts/' + x.id + '/image'" [alt]="'Scan of the receipt' + (x.merchant ? ' from ' + x.merchant : '')" /></div>
+        <div class="row wrap" style="padding: 10px 12px; border-top: 1px solid var(--line)">
+          <button type="button" class="btn sm" (click)="downloadPdf(x)"><k-icon name="dl" [size]="14" />Download PDF</button>
+          <button type="button" class="btn sm" (click)="printPdf()"><k-icon name="doc" [size]="14" />Print</button>
+          <button type="button" class="btn sm ghost" (click)="downloadImage(x)">Image</button>
+        </div>
+      } @else { <div class="empty">Entered by hand. No scan.</div> }
       @if (x.items.length) {
         <table class="t tight"><tbody>
           @for (i of x.items; track $index) { <tr><td class="desc">{{ i.description }}</td><td class="n">{{ i.amount | rm }}</td></tr> }
@@ -193,6 +198,27 @@ export class ReceiptDetailPage {
   protected async save(): Promise<void> {
     await this.update();
     await this.run(this.api.post<Receipt>(`/personal/receipts/${this.id()}/save`), 'Saved to your records.');
+  }
+
+  protected downloadPdf(x: Receipt): void {
+    this.api.download(`/personal/receipts/${x.id}/pdf`, undefined, `receipt-${x.date}.pdf`).catch(e => this.toasts.error(errorText(e)));
+  }
+
+  protected downloadImage(x: Receipt): void {
+    this.api.download(`/personal/receipts/${x.id}/image`, undefined, `receipt-${x.date}.jpg`).catch(e => this.toasts.error(errorText(e)));
+  }
+
+  /** Opens the PDF in a new tab, ready to print. The tab is opened first so pop-up blockers allow it. */
+  protected async printPdf(): Promise<void> {
+    const tab = window.open('', '_blank');
+    try {
+      const url = await this.api.objectUrl(`/personal/receipts/${this.id()}/pdf`);
+      if (tab) tab.location.href = url; else window.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      tab?.close();
+      this.toasts.error(errorText(e));
+    }
   }
 
   protected async remove(x: Receipt): Promise<void> {

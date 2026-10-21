@@ -80,8 +80,17 @@ public sealed class ReceiptsController(ReceiptService receipts, IOptions<UploadO
     [HttpGet("{id:guid}/screenshot")]
     public async Task<FileContentResult> Screenshot(Guid id, CancellationToken ct) => (await receipts.FileAsync(id, true, ct)).ToFile();
 
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<FileContentResult> Pdf(Guid id, CancellationToken ct) => (await receipts.PdfAsync(id, ct)).ToFile();
+
+    /// <summary>Form fields: file (the cleaned scan) and, for a long receipt, sections (the scan cut into readable pieces for the AI).</summary>
     [HttpPost, EnableRateLimiting(RatePolicies.Ai)]
-    public async Task<ReceiptDto> Upload(IFormFile file, CancellationToken ct) => await receipts.UploadAsync(await file.ReadAsync(uploads.Value.MaxFileMb, ct), ct);
+    public async Task<ReceiptDto> Upload(IFormFile file, [FromForm] List<IFormFile>? sections, CancellationToken ct)
+    {
+        var parts = new List<FileUpload>();
+        foreach (var s in sections ?? []) parts.Add(await s.ReadAsync(uploads.Value.MaxFileMb, ct));
+        return await receipts.UploadAsync(await file.ReadAsync(uploads.Value.MaxFileMb, ct), parts, ct);
+    }
 
     [HttpPost("manual")]
     public Task<ReceiptDto> Manual(CancellationToken ct) => receipts.CreateManualAsync(ct);

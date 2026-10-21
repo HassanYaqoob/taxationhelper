@@ -21,6 +21,7 @@ public sealed class ReceiptService(IAppDbContext db, ICurrentUser me, Extractors
     IClock clock, ILogger<ReceiptService> log)
 {
     static readonly string[] ImageOrPdf = ["image/*", FileRules.Pdf];
+    const int MaxSections = 12;
 
     public async Task<List<ReceiptDto>> ListAsync(bool needsAttention, CancellationToken ct)
     {
@@ -40,17 +41,47 @@ public sealed class ReceiptService(IAppDbContext db, ICurrentUser me, Extractors
         return new FileResult(f.Data, f.ContentType, f.FileName);
     }
 
-    public async Task<ReceiptDto> UploadAsync(FileUpload upload, CancellationToken ct)
+    /// <summary>
+    /// Saves a receipt. The browser sends the cleaned scan (cropped, straightened, long receipts joined) as one image, and
+    /// for a long receipt also the same scan cut into readable sections for the AI to read.
+    /// Only the scan is kept.
+    /// </summary>
+    /// <summary>A printable A4 PDF copy of the receipt scan. Receipts uploaded as PDF are returned unchanged.</summary>
+    public async Task<FileResult> PdfAsync(Guid id, CancellationToken ct)
+    {
+        var r = await LoadAsync(id, false, ct);
+        var fileId = r.ImageFileId ?? throw new NotFoundException("This receipt has no scan.");
+        var f = await db.StoredFiles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == fileId && x.UserId == me.Id, ct) ?? throw new NotFoundException();
+        var name = FileRules.SafeName($"Receipt {(string.IsNullOrWhiteSpace(r.Merchant) ? "" : r.Merchant + " ")}{r.Date:yyyy-MM-dd}.pdf");
+        if (f.ContentType == FileRules.Pdf) return new FileResult(f.Data, FileRules.Pdf, name);
+        if (f.ContentType != "image/jpeg")
+            throw new DomainException("This receipt was saved before scanning was added, so there's no PDF copy. Download the image, or scan it again.");
+        var footer = string.Join(" | ", new[] { r.Merchant, r.Date.ToString("d MMM yyyy"), r.Total > 0 ? $"RM {r.Total:N2}" : "" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return new FileResult(ReceiptPdf.FromJpeg(f.Data, footer), FileRules.Pdf, name);
+    }
+
+    public async Task<ReceiptDto> UploadAsync(FileUpload upload, CancellationToken ct) => await UploadAsync(upload, [], ct);
+
+    public async Task<ReceiptDto> UploadAsync(FileUpload upload, IReadOnlyList<FileUpload> sections, CancellationToken ct)
     {
         var type = FileRules.Require(upload, ImageOrPdf);
+        if (sections.Count > MaxSections) throw new DomainException($"A receipt can have at most {MaxSections} sections.");
+        var images = new List<AiAttachment>();
+        foreach (var s in sections)
+        {
+            var t = FileRules.Require(s, ["image/*"]);
+            images.Add(new AiAttachment(s.Data, t));
+        }
+        if (images.Count == 0) images.Add(new AiAttachment(upload.Data, type));
+
         var file = files.Add(upload, type, null, me.Id);
         var r = new Receipt { UserId = me.Id, ImageFileId = file.Id, Date = clock.Today, Status = ReceiptStatus.Review };
-        if (!aiClient.Enabled) { r.Reason = "AI is off. Fill in the details."; r.Merchant = Path.GetFileNameWithoutExtension(file.FileName); }
+        if (!aiClient.Enabled) r.Reason = "AI is off on this server. Fill in the details.";
         else
         {
             try
             {
-                var read = await ai.ReceiptAsync(upload.Data, type, rules.Value.ReliefsFor(clock.Today.Year), ct);
+                var read = await ai.ReceiptAsync(images, rules.Value.ReliefsFor(clock.Today.Year), ct);
                 r.Merchant = read.Merchant; r.Date = read.Date ?? clock.Today; r.Total = read.Total; r.Sst = read.Sst; r.ReceiptNo = read.ReceiptNo;
                 r.ItemsJson = JsonSerializer.Serialize(read.Items); r.Category = read.Category; r.Confidence = read.Confidence; r.Reason = read.Reason;
                 if (read.ReliefCode != null) { r.SuggestedReliefCode = read.ReliefCode; r.ReliefConfidence = read.ReliefConfidence; r.ReliefReason = read.ReliefReason; }

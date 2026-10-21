@@ -3,21 +3,21 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService, errorText } from '../../core/api/api.service';
 import { Receipt } from '../../core/api/models';
 import { Icon } from '../../core/ui/icon';
-import { DayPipe, RmPipe, takeFile } from '../../core/ui/pipes';
+import { DayPipe, RmPipe } from '../../core/ui/pipes';
 import { ToastService } from '../../core/ui/toast.service';
 import { ReceiptImage } from './receipt-image';
+import { ReceiptScanner, ScanResult } from './scan/receipt-scanner';
 
 @Component({
   selector: 'k-receipts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Icon, RmPipe, DayPipe, ReceiptImage],
+  imports: [RouterLink, Icon, RmPipe, DayPipe, ReceiptImage, ReceiptScanner],
   template: `
 <div class="page-head">
-  <div><h1>Receipts</h1><p>Snap or upload a receipt. Kira reads it, picks a category, and checks whether it qualifies for tax relief.</p></div>
+  <div><h1>Receipts</h1><p>Scan a receipt: Kira crops and straightens it, joins long receipts taken in parts, and keeps a clean copy you can print. It also reads the details and checks for tax relief.</p></div>
   <div class="acts">
     <button type="button" class="btn" (click)="manual()"><k-icon name="plus" [size]="16" />Enter by hand</button>
-    <label class="btn primary filebtn" [class.disabled]="busy()"><k-icon name="camera" [size]="16" />{{ busy() ? 'Reading…' : 'Upload receipt' }}
-      <input type="file" accept="image/*,application/pdf" capture="environment" [disabled]="busy()" (change)="upload($event)" aria-label="Upload receipt"></label>
+    <button type="button" class="btn primary" [disabled]="busy()" (click)="scanning.set(true)"><k-icon name="camera" [size]="16" />{{ busy() ? 'Reading…' : 'Scan receipt' }}</button>
   </div>
 </div>
 <div class="tabs" role="tablist">
@@ -46,8 +46,9 @@ import { ReceiptImage } from './receipt-image';
         </div>
       </div>
     </a>
-  } @empty { <div class="card pad empty" style="grid-column: 1 / -1">{{ attention() ? 'Nothing needs attention.' : 'No receipts yet. Upload a photo or PDF to start.' }}</div> }
-</div>`
+  } @empty { <div class="card pad empty" style="grid-column: 1 / -1">{{ attention() ? 'Nothing needs attention.' : 'No receipts yet. Tap Scan receipt to start.' }}</div> }
+</div>
+@if (scanning()) { <k-receipt-scanner (done)="onScanned($event)" (closed)="scanning.set(false)" /> }`
 })
 export class ReceiptsPage {
   private readonly api = inject(ApiService);
@@ -56,6 +57,7 @@ export class ReceiptsPage {
   protected readonly list = signal<Receipt[]>([]);
   protected readonly attention = signal(false);
   protected readonly busy = signal(false);
+  protected readonly scanning = signal(false);
   protected readonly needing = computed(() => this.list().filter(r => r.status !== 'Saved' || r.paymentStatus === 'Unknown' || (!r.reliefCode && !!r.suggestedReliefCode)));
   protected readonly shown = computed(() => this.attention() ? this.needing() : this.list());
 
@@ -66,11 +68,14 @@ export class ReceiptsPage {
     catch (e) { this.toasts.error(errorText(e)); }
   }
 
-  protected async upload(event: Event): Promise<void> {
-    const file = takeFile(event);
-    if (!file) return;
+  protected async onScanned(result: ScanResult): Promise<void> {
+    this.scanning.set(false);
     const form = new FormData();
-    form.append('file', file);
+    if (result.kind === 'pdf') form.append('file', result.file);
+    else {
+      form.append('file', result.scan, 'receipt-scan.jpg');
+      result.sections.forEach((s, i) => form.append('sections', s, `section-${i + 1}.jpg`));
+    }
     this.busy.set(true);
     try {
       const r = await this.api.upload<Receipt>('/personal/receipts', form);
